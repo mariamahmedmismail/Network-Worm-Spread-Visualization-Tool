@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetSim Ultimate - Final Fix</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            /* Dashboard theme (Old NetSim look) */
+            --primary: #1e3c72;
+            --accent: #3498db;
+            --danger: #e74c3c;
+            --success: #2ecc71;
+            --warning: #f1c40f;
+            --text: #1f2937;
+            --panel-bg: #ffffff;
+            --app-bg: #eef3fb;
+            --border: #d7dee9;
+            --term-bg: #0b1020;
+            --term-text: #7CFF98;
+            --honeypot: #e67e22;
+        }
+        body {
+            font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0;
+            background-color: var(--app-bg); color: var(--text); height: 100vh;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        
+        /* HEADER */
+        header {
+            background: var(--primary); padding: 0 20px; display: flex;
+            justify-content: space-between; align-items: center; height: 50px;
+            border-bottom: 1px solid rgba(255,255,255,0.15); flex-shrink: 0;
+        }
+        header h1 { font-size: 1.1rem; margin: 0; color: #ffffff; letter-spacing: 1px; }
+
+        .main-container { 
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            gap: 10px;
+            flex: 1; 
+            height: calc(100vh - 50px);
+            padding: 10px;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            background: transparent;
+            display: flex; flex-direction: column; gap: 10px;
+            overflow-y: auto;
+            min-height: 0;
+        }
+        .panel { background: var(--panel-bg); padding: 12px; border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 2px 10px rgba(16,24,40,0.06); }
+        .panel-title { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: var(--primary); margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+        
+        /* INPUTS */
+        label { display: block; font-size: 0.72rem; margin-bottom: 4px; color: #475569; font-weight: 600; }
+        select, input { width: 100%; padding: 7px; margin-bottom: 8px; background: #ffffff; border: 1px solid var(--border); color: var(--text); border-radius: 6px; box-sizing: border-box; }
+        
+        /* BUTTONS */
+        button { width: 100%; padding: 8px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.85rem; transition: 0.2s; margin-bottom: 6px; color: white; }
+        .btn-gen { background: var(--accent); } 
+        .btn-start { background: var(--success); }
+        .btn-iso { background: var(--warning); color: #2c3e50; } 
+        .btn-rec { background: #9b59b6; }
+        .btn-cut { background: #e74c3c; } 
+        .btn-reset { background: #c0392b; margin-top: 5px; }
+        .btn-close { background: #7f8c8d; }
+        button:disabled { background: #7f8c8d; cursor: not-allowed; opacity: 0.5; }
+        button:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
+        
+        .badge { font-size: 0.7rem; background: rgba(0,0,0,0.2); padding: 1px 5px; border-radius: 3px; float: right; }
+
+        /* STATS GRID - FIXED LAYOUT */
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .stat-box { 
+            background: #f8fafc; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid var(--border);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .stat-val { font-size: 1.1rem; font-weight: bold; line-height: 1.2; }
+        .stat-lbl { font-size: 0.65rem; color: #64748b; text-transform: uppercase; margin-top: 4px; }
+
+        /* TERMINAL LOG */
+        .log-box {
+            background: var(--term-bg); color: var(--term-text); 
+            font-family: 'Courier New', monospace; 
+            font-size: 0.7rem; padding: 10px; height: 120px; 
+            overflow-y: auto; border-radius: 4px; border: 1px solid #444;
+            display: flex; flex-direction: column-reverse; /* Newest at bottom */
+        }
+        .log-entry { margin-bottom: 3px; border-bottom: 1px solid #222; padding-bottom: 2px; word-wrap: break-word; }
+        .log-time { color: #555; margin-right: 5px; font-size: 0.65rem; }
+
+        /* CENTER AREA */
+        .center-area { 
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+        }
+        
+        .canvas-wrapper { 
+            width: 100%;
+            height: 100%;
+            background: white;
+            border-radius: 10px;
+            position: relative; 
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 30px rgba(16,24,40,0.08);
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        canvas { width: 100%; height: 100%; cursor: crosshair; }
+        
+        .chart-wrapper { background: white; border-radius: 8px; padding: 10px; border: 1px solid var(--border); box-shadow: 0 2px 10px rgba(16,24,40,0.06); position: relative; display: flex; flex-direction: column; min-height: 200px; }
+        
+        /* INFO DRAWER */
+        .info-drawer { 
+            height: 110px; flex-shrink: 0; background: white; border-radius: 8px; 
+            color: #2c3e50; padding: 10px 15px; display: grid; grid-template-columns: 1fr 1fr; 
+            gap: 20px; overflow-y: auto; box-shadow: 0 -4px 6px rgba(0,0,0,0.05); font-size: 0.85rem; 
+        }
+        .info-col h3 { margin-top: 0; font-size: 0.9rem; border-bottom: 2px solid #bdc3c7; padding-bottom: 4px; margin-bottom: 6px; color: var(--primary); }
+        .info-col ul { padding-left: 20px; margin: 0; } .info-col li { margin-bottom: 2px; }
+
+        /* LEGEND (now in right sidebar) */
+        .legend { background: #ffffff; color: #111827; padding: 10px; border-radius: 8px; font-size: 0.78rem; border: 1px solid var(--border); }
+        #tooltip { position: absolute; background: rgba(0,0,0,0.9); color: white; padding: 5px 10px; border-radius: 4px; font-size: 0.8rem; pointer-events: none; display: none; z-index: 100; }
+        
+        /* VISUAL FEEDBACK BADGES ON CANVAS */
+        .active-defense-badge {
+            position: absolute; top: 10px; left: 10px; 
+            display: flex; flex-direction: column; gap: 5px; pointer-events: none;
+        }
+        .def-badge { background: rgba(46, 204, 113, 0.9); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
+        /* MODALS */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+        .modal-content { background: white; color: #333; padding: 25px; border-radius: 8px; width: 600px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .grade { font-size: 4rem; font-weight: bold; display: block; margin: 10px 0; }
+        
+        .cut-mode .canvas-wrapper canvas { cursor: crosshair !important; }
+        .hidden { display: none !important; }
+
+        /* SHOP GRID */
+        .shop-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 20px 0; }
+        .shop-card { border: 2px solid #bdc3c7; border-radius: 6px; padding: 8px; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: space-between; height: 100px; }
+        .shop-card:hover { background: #f0f8ff; border-color: var(--accent); }
+        .shop-card.selected { border-color: var(--success); background: #e8f5e9; }
+        .shop-card.disabled { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.7); }
+        .shop-card.disabled:hover { background: transparent; border-color: #bdc3c7; transform: none; }
+        .shop-card .icon { font-size: 1.5rem; }
+        .shop-card .title { font-weight: bold; font-size: 0.75rem; }
+        .shop-card .price { font-size: 0.75rem; color: #e67e22; font-weight: bold; }
+    </style>
+</head>
+<body id="appBody">
+    <header>
+        <h1>🛡️ NetSim Ultimate</h1>
+        <div style="font-size: 0.8rem; color: rgba(255,255,255,0.85);">Budget Mode: Active</div>
+    </header>
+    <div class="main-container">
+        <aside class="sidebar sidebar-left">
+            <div class="panel">
+                <div class="panel-title">1. System Config</div>
+                <label>Network Topology</label>
+                <select id="topologySelect">
+                    <option value="star">⭐ Star (Central)</option>
+                    <option value="ring">🔄 Ring (Loop)</option>
+                    <option value="tree">🌳 Tree (Hierarchy)</option>
+                    <option value="mesh">🕸 Mesh (Redundant)</option>
+                </select>
+                <label>Threat Profile</label>
+                <select id="malwareType" onchange="updateMalwareIcon()">
+                    <option value="worm">🐛 Fast Worm</option>
+                    <option value="virus">☣️ Virus</option>
+                    <option value="trojan">🐴 Trojan Horse</option>
+                </select>
+                <label>Node Count</label>
+                <input type="number" id="numNodes" value="20" min="5" max="50">
+                <label>Starting Budget ($)</label>
+                <input type="number" id="budgetInput" value="25000" min="0" step="500" oninput="syncBudgetDisplays()">
+                <button class="btn-gen" onclick="generate()">🚀 Generate Network</button>
+            </div>
+
+            <div class="panel" id="securityShopPanel">
+                <div class="panel-title">🛡️ Security Shop</div>
+                <div style="margin-bottom:10px;">
+                    <label>Total Security Budget ($)</label>
+                    <input type="number" id="userBudgetInput" min="15000" step="500" value="15000">
+                    <button class="btn-gen" style="margin-bottom:6px;" onclick="setBudget()">Set Budget</button>
+                    <div id="shopBudgetMath" style="font-size:0.72rem; color:#bdc3c7; line-height:1.3;">
+                        Total: $0 - Reserved: $15,000 = Available to Spend: $0
+                    </div>
+                </div>
+                <div style="text-align:center; margin-bottom:8px; background:#f8fafc; padding:8px; border-radius:8px; border:1px solid var(--border); color: var(--text);">
+                    <div style="font-size:0.7rem; color:#64748b;">Remaining Budget</div>
+                    <div style="font-size:1.2rem; font-weight:bold;" id="shopRemainingBudget">$15,000</div>
+                    <div style="font-size:0.7rem; color:#64748b; margin-top:4px;">Security Budget Used: <strong id="storeTotalCost">$0</strong></div>
+                </div>
+                <div class="shop-grid" style="grid-template-columns: repeat(2, 1fr); margin: 0;">
+                    <div class="shop-card" id="store-card-honey" onclick="toggleStoreItem('honey')" style="height: 92px;">
+                        <div class="icon">🍯</div><div class="title">Honeypots</div><div class="price">$2,000</div>
+                    </div>
+                    <div class="shop-card" id="store-card-firewall" onclick="toggleStoreItem('firewall')" style="height: 92px;">
+                        <div class="icon">🛡️</div><div class="title">Firewall</div><div class="price">$4,000</div>
+                    </div>
+                    <div class="shop-card" id="store-card-ips" onclick="toggleStoreItem('ips')" style="height: 92px;">
+                        <div class="icon">🤖</div><div class="title">Auto IPS</div><div class="price">$5,000</div>
+                    </div>
+                    <div class="shop-card" id="store-card-harden" onclick="toggleStoreItem('harden')" style="height: 92px;">
+                        <div class="icon">🔒</div><div class="title">Hardening</div><div class="price">$6,000</div>
+                    </div>
+                    <div class="shop-card" id="store-card-backup" onclick="toggleStoreItem('backup')" style="height: 92px;">
+                        <div class="icon">💾</div><div class="title">Backup</div><div class="price">$8,000</div>
+                    </div>
+                </div>
+                <div style="font-size:0.7rem; color:#95a5a6; margin-top:6px; line-height:1.25;">
+                    Honeypots: Traps the worm.<br>
+                    Firewall: Filters traffic.<br>
+                    Auto IPS: Automatically isolates infections.<br>
+                    Hardening: Reduces vulnerability.<br>
+                    Backup: Speeds up recovery.
+                </div>
+            </div>
+
+            <div id="activeBuffsPanel" class="hidden" style="margin-bottom: 10px;">
+                <div style="font-size:0.7rem; color:#bdc3c7; text-transform:uppercase; margin-bottom:5px;">Active Defenses</div>
+                <div class="active-upgrades" id="activeUpgradesList"></div>
+            </div>
+
+            <div class="panel" id="controlsPanel">
+                <div class="panel-title">3. Response Controls</div>
+                <p id="statusMsg" style="font-size:0.75rem; text-align:center; color:#64748b; margin-bottom:8px;">Select Patient Zero...</p>
+                <div style="display:flex; gap:5px;">
+                    <button id="startBtn" class="btn-start" disabled onclick="startSim()">▶ Start</button>
+                    <button id="pauseBtn" class="btn-gen" disabled onclick="pauseSim()">⏸ Pause</button>
+                </div>
+                <button id="cutBtn" class="btn-cut" disabled onclick="toggleCutMode()">✂️ Cut Link Mode <span class="badge">-$500</span></button>
+                <button id="isoBtn" class="btn-iso" disabled onclick="buyIsolation()">🛡 Isolate Network <span class="badge">-$5k</span></button>
+                <button id="recBtn" class="btn-rec" disabled onclick="buyRecovery()">Recover <span class="badge">-$10k</span></button>
+                <button class="btn-reset" onclick="resetSim()">🔄 Reset System</button>
+            </div>
+        </aside>
+
+        <main class="center-area">
+            <div class="canvas-wrapper">
+                <canvas id="mainCanvas"></canvas>
+                <div id="activeDefenseOverlay" class="active-defense-badge"></div>
+                <div id="tooltip"></div>
+            </div>
+        </main>
+
+        <aside class="sidebar sidebar-right">
+            <div class="panel" id="statsPanel">
+                <div class="panel-title">Live Telemetry</div>
+                <div style="text-align:center; margin-bottom:10px; background:#f8fafc; padding:8px; border-radius:8px; border:1px solid var(--border); color: var(--primary);">
+                    <span style="font-size:0.7rem; color:#64748b;">FUNDS</span><br>
+                    <strong style="font-size:1.2rem;" id="dashBudget">$25,000</strong>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-box"><span class="stat-val" id="dashHealthy" style="color:var(--success)">0</span><span class="stat-lbl">Clean</span></div>
+                    <div class="stat-box"><span class="stat-val" id="dashInfected" style="color:var(--danger)">0</span><span class="stat-lbl">Infected</span></div>
+                    <div class="stat-box"><span class="stat-val" id="dashCost" style="color:var(--danger)">$0</span><span class="stat-lbl">Cost</span></div>
+                    <div class="stat-box"><span class="stat-val" id="dashTime">0s</span><span class="stat-lbl">Time</span></div>
+                </div>
+            </div>
+
+            <div class="panel" id="legendPanel">
+                <div class="panel-title">Legend</div>
+                <div class="legend">
+                    <strong>Map Legend</strong><br>
+                    <span style="color:var(--success)">●</span> Healthy Node<br>
+                    <span style="color:var(--danger)">●</span> Infected Node<br>
+                    <span style="color:#9b59b6">●</span> Recovered Node<br>
+                    <span style="color:var(--honeypot)">●</span> Honeypot<br>
+                    <span style="color:var(--danger)">--</span> Cut Link<br>
+                    <hr style="border:0; border-top:1px solid #e5e7eb; margin:8px 0;">
+                    <div>🐛 Worm | 🐴 Trojan | 🦠 Virus</div>
+                </div>
+            </div>
+
+            <div class="panel hidden" id="chartPanel">
+                <div class="panel-title">Trends</div>
+                <div class="chart-wrapper" style="box-shadow:none; border:none; padding:0; min-height: 200px;">
+                    <canvas id="liveChart"></canvas>
+                </div>
+            </div>
+
+            <div class="panel" style="flex:1; min-height:0; display:flex; flex-direction:column;">
+                <div class="panel-title">Terminal Log</div>
+                <div class="log-box" id="log" style="height: 100%; flex:1;"></div>
+            </div>
+        </aside>
+    </div>
+
+    <div id="reportModal" class="modal hidden">
+        <div class="modal-content">
+            <h2>Incident Report</h2>
+            <span id="gradeDisplay" class="grade">A</span>
+            <p id="gradeText">Excellent Response!</p>
+            <hr>
+            <div style="text-align:left; font-size:0.9rem; margin:20px 0;">
+                <p>Final Budget: <strong id="repBudget" style="float:right"></strong></p>
+                <p>Total Damage: <strong id="repDamage" style="float:right"></strong></p>
+                <p>Peak Infection: <strong id="repPeak" style="float:right"></strong></p>
+            </div>
+            <button class="btn-gen" onclick="showStrategyModal()">🛡️ Mitigation & IR Guide</button>
+        </div>
+    </div>
+
+    <div id="shopModal" class="modal hidden">
+        <div class="modal-content" style="width: 700px;">
+            <h2 style="color:var(--accent);">🛡️ Mitigation & 🚨 Incident Response</h2>
+            <p style="font-size:0.9rem; color:#666;">Reference guide for the selected topology.</p>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 10px; text-align:left;">
+                <div style="background:#f7f9fb; border:1px solid #e1e6ea; border-radius:8px; padding:12px;">
+                    <h3 style="margin:0 0 8px 0; color:#2c3e50;">🛡️ Mitigation Strategies</h3>
+                    <ul id="mitModalList" style="margin:0; padding-left:20px;"></ul>
+                </div>
+                <div style="background:#f7f9fb; border:1px solid #e1e6ea; border-radius:8px; padding:12px;">
+                    <h3 style="margin:0 0 8px 0; color:#2c3e50;">🚨 Incident Response</h3>
+                    <ul id="resModalList" style="margin:0; padding-left:20px;"></ul>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px; justify-content: center;">
+                <button class="btn-close" style="width: auto; padding: 10px 30px;" onclick="closeStrategyModal()">Close Window</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Shop is in the sidebar; no mitigation-options popups -->
+
+    <script>
+        const CONFIG = {
+            DEVICES: { 'pc': { icon: '🖥', cost: 2000 }, 'laptop': { icon: '💻', cost: 1500 }, 'router': { icon: '📡', cost: 5000 }, 'switch': { icon: '🔌', cost: 8000 } },
+            COSTS: { ISOLATION: 5000, RECOVERY: 10000, LINK_CUT: 500, DEFAULT_BUDGET: 25000 },
+            MALWARE: { 
+                'worm': { speed: 2.0, dmg: 1.0, icon: '🐛' }, 
+                'virus': { speed: 1.5, dmg: 1.5, icon: '🦠' }, // Fixed visual here
+                'trojan': { speed: 0.8, dmg: 1.2, icon: '🐴' } // Fixed visual here
+            },
+            COLORS: { healthy: '#2ecc71', infected: '#e74c3c', recovered: '#9b59b6', honeypot: '#e67e22', link: '#bdc3c7', isolated: '#7f8c8d', cut: '#e74c3c', critical: '#f1c40f' }
+        };
+        const STRATEGIES = {
+            star: { mit: ["Harden Central Switch.", "Port Security & MAC Filtering.", "Use VLANs.", "Disable unused ports.", "Physical cable security."], res: ["Isolate Central Switch.", "Shutdown specific ports.", "Deploy packet sniffers.", "Full blackout if Hub infected.", "Flash firmware."] },
+            ring: { mit: ["Dual-Ring redundancy.", "Use BFD protocol.", "Segment sub-rings.", "802.1X Auth.", "Syslog monitoring."], res: ["Disconnect neighbor nodes.", "Break loop propagation.", "Re-route via backup ring.", "Forensic traffic capture.", "Patch before reconnect."] },
+            tree: { mit: ["Firewalls between layers.", "Upstream ACLs.", "EDR on Root Node.", "Secure branch switches.", "Separate subnets."], res: ["Sever branch connections.", "Isolate Root Node.", "Quarantine departments.", "Disable inter-VLAN routing.", "Scan servers."] },
+            mesh: { mit: ["Zero Trust Architecture.", "Host-Based Firewalls.", "Micro-segmentation.", "IPSec Encryption.", "Anomaly Detection."], res: ["Isolate all nodes.", "Cut external gateway.", "Sinkhole DNS.", "Re-image nodes.", "Verify all links."] }
+        };
+
+        // Security Shop state (requested)
+        const activeDefenses = { honey: false, firewall: false, ips: false, harden: false, backup: false };
+        const RESERVED_AMOUNT = 15000;
+        const SECURITY_COSTS = { honey: 2000, firewall: 4000, ips: 5000, harden: 6000, backup: 8000 };
+        let totalSecurityBudget = 0;
+        let budgetSet = false;
+        let currentBudget = 0; // remaining available-to-spend budget (Total - Reserved - Purchases)
+
+        // STATE
+        let network = { nodes: [], edges: [] };
+        let activePackets = [];
+        let state = { running: false, paused: false, startBudget: CONFIG.COSTS.DEFAULT_BUDGET, budget: CONFIG.COSTS.DEFAULT_BUDGET, securityCost: 0, damage: 0, peak: 0, elapsed: 0, malware: 'worm', iso: false, rec: false, cutMode: false, backupUsed: false, upgrades: activeDefenses };
+        let canvas, ctx, animId, lastTime = 0, chart;
+        let floatingTexts = []; // For "BLOCKED" popup text
+
+        // INIT
+        window.onload = () => {
+            canvas = document.getElementById('mainCanvas');
+            ctx = canvas.getContext('2d');
+            window.addEventListener('resize', resize);
+            canvas.addEventListener('click', onClick);
+            canvas.addEventListener('mousemove', onHover);
+            canvas.addEventListener('mouseleave', () => document.getElementById('tooltip').style.display = 'none');
+            initChart();
+            const budgetEl = document.getElementById('budgetInput');
+            if(budgetEl && !budgetEl.value) budgetEl.value = String(CONFIG.COSTS.DEFAULT_BUDGET);
+            syncBudgetDisplays();
+            updateStoreUI(); // will keep shop disabled until budget is set
+            log("System Initialized. Awaiting Input.");
+        };
+
+        function getStoreCost(sel) {
+            let cost = 0;
+            if(sel.honey) cost += 2000;
+            if(sel.firewall) cost += 4000;
+            if(sel.ips) cost += 5000;
+            if(sel.harden) cost += 6000;
+            if(sel.backup) cost += 8000;
+            return cost;
+        }
+
+        function getAvailableShopBudget() {
+            return budgetSet ? Math.max(0, totalSecurityBudget - RESERVED_AMOUNT) : 0;
+        }
+
+        function refreshShopBudgetMathDisplay() {
+            const el = document.getElementById('shopBudgetMath');
+            if(!el) return;
+            const total = budgetSet ? totalSecurityBudget : 0;
+            const available = budgetSet ? getAvailableShopBudget() : 0;
+            el.innerText = `Total: $${total.toLocaleString()} - Reserved: $${RESERVED_AMOUNT.toLocaleString()} = Available to Spend: $${available.toLocaleString()}`;
+        }
+
+        function setBudget() {
+            const inputEl = document.getElementById('userBudgetInput');
+            const val = inputEl ? Number(inputEl.value) : NaN;
+            if(!Number.isFinite(val) || val < RESERVED_AMOUNT) {
+                alert("Minimum budget is $15,000 to cover mandatory core defenses.");
+                return;
+            }
+
+            totalSecurityBudget = Math.floor(val);
+            budgetSet = true;
+
+            // Mandatory deduction (reserve)
+            const available = Math.max(0, totalSecurityBudget - RESERVED_AMOUNT);
+
+            // Reset shop selections on budget set to avoid inconsistent states.
+            activeDefenses.honey = false;
+            activeDefenses.firewall = false;
+            activeDefenses.ips = false;
+            activeDefenses.harden = false;
+            activeDefenses.backup = false;
+
+            currentBudget = available;
+            refreshShopBudgetMathDisplay();
+            updateStoreUI();
+        }
+
+        function updateBudgetDisplay() {
+            const remainingEl = document.getElementById('shopRemainingBudget');
+            if(remainingEl) remainingEl.innerText = budgetSet ? `$${currentBudget.toLocaleString()}` : "$0";
+            const usedEl = document.getElementById('storeTotalCost');
+            const used = getAvailableShopBudget() - currentBudget;
+            if(usedEl) usedEl.innerText = `$${Math.max(0, used).toLocaleString()}`;
+            refreshShopBudgetMathDisplay();
+        }
+
+        function toggleStoreItem(item) {
+            if(state.running) { alert("Security Shop is locked while simulation is running."); return; }
+            if(!budgetSet) { alert("Please set a valid Total Security Budget first."); return; }
+            const cost = SECURITY_COSTS[item] ?? 0;
+            if(activeDefenses[item]) {
+                // Refund on deselect
+                activeDefenses[item] = false;
+                currentBudget = Math.min(getAvailableShopBudget(), currentBudget + cost);
+            } else {
+                // Spend on select (block overspend)
+                if(cost > currentBudget) { alert("Not enough remaining budget."); return; }
+                activeDefenses[item] = true;
+                currentBudget = Math.max(0, currentBudget - cost);
+            }
+            updateStoreUI();
+        }
+
+        function updateStoreUI() {
+            updateBudgetDisplay();
+            const setSel = (id, on) => {
+                const c = document.getElementById(id);
+                if(c) c.classList.toggle('selected', !!on);
+            };
+            setSel('store-card-honey', activeDefenses.honey);
+            setSel('store-card-firewall', activeDefenses.firewall);
+            setSel('store-card-ips', activeDefenses.ips);
+            setSel('store-card-harden', activeDefenses.harden);
+            setSel('store-card-backup', activeDefenses.backup);
+
+            // Disable cards that are unaffordable (but never disable already-selected ones).
+            const setDisabled = (id, itemKey) => {
+                const c = document.getElementById(id);
+                if(!c) return;
+                const cost = SECURITY_COSTS[itemKey] ?? 0;
+                const shouldDisable = !budgetSet || (!activeDefenses[itemKey] && cost > currentBudget);
+                c.classList.toggle('disabled', shouldDisable);
+            };
+            setDisabled('store-card-honey', 'honey');
+            setDisabled('store-card-firewall', 'firewall');
+            setDisabled('store-card-ips', 'ips');
+            setDisabled('store-card-harden', 'harden');
+            setDisabled('store-card-backup', 'backup');
+        }
+
+        // Security Shop stays visible in the left sidebar.
+
+        function getUserBudget() {
+            const el = document.getElementById('budgetInput');
+            const raw = el ? Number(el.value) : CONFIG.COSTS.DEFAULT_BUDGET;
+            if(!Number.isFinite(raw)) return CONFIG.COSTS.DEFAULT_BUDGET;
+            return Math.max(0, Math.floor(raw));
+        }
+
+        function syncBudgetDisplays() {
+            const budget = getUserBudget();
+            const dash = document.getElementById('dashBudget');
+            if(dash) dash.innerText = `$${budget.toLocaleString()}`;
+        }
+
+        function resize() {
+            const wrap = document.querySelector('.canvas-wrapper');
+            canvas.width = wrap.clientWidth;
+            canvas.height = wrap.clientHeight;
+            if(network.nodes.length) draw();
+        }
+        
+        function log(msg) { 
+            const d = new Date();
+            const time = d.getHours() + ":" + (d.getMinutes()<10?'0':'') + d.getMinutes() + ":" + (d.getSeconds()<10?'0':'') + d.getSeconds();
+            const box = document.getElementById('log');
+            // Insert at beginning (top) so newest is visible if flex-direction is column-reverse, or append if normal
+            // Using prepend for natural reading order in a fixed box
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-time">[${time}]</span> ${msg}`;
+            box.insertBefore(entry, box.firstChild);
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('liveChart').getContext('2d');
+            chart = new Chart(ctx, { type: 'line', data: { labels: [], datasets: [{ label: 'Healthy', data: [], borderColor: CONFIG.COLORS.healthy, tension: 0.1, pointRadius:0 }, { label: 'Infected', data: [], borderColor: CONFIG.COLORS.infected, tension: 0.1, pointRadius:0 }] }, options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { x: { display: false }, y: { beginAtZero: true } }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } } } } });
+        }
+
+        function updateMalwareIcon() {
+            state.malware = document.getElementById('malwareType').value;
+            // No simple element to update here, the draw loop handles it dynamically
+        }
+
+        function generate() {
+            const type = document.getElementById('topologySelect').value;
+            const count = parseInt(document.getElementById('numNodes').value) || 20;
+            state.malware = document.getElementById('malwareType').value;
+            updateMalwareIcon();
+
+            let startBudget = getUserBudget();
+            const securityCost = getStoreCost(activeDefenses);
+            state.securityCost = securityCost;
+            startBudget -= securityCost;
+
+            resetSim(startBudget);
+            
+            // UI Visuals for Upgrades
+            let overlay = document.getElementById('activeDefenseOverlay');
+            overlay.innerHTML = '';
+            if(activeDefenses.firewall) overlay.innerHTML += '<div class="def-badge">🔥 Firewall Active</div>';
+            if(activeDefenses.harden) overlay.innerHTML += '<div class="def-badge">🛡️ Hardening Active</div>';
+            if(activeDefenses.ips) overlay.innerHTML += '<div class="def-badge">🤖 Auto IPS Ready</div>';
+            if(activeDefenses.backup) overlay.innerHTML += '<div class="def-badge">💾 Backup Ready</div>';
+
+            // Keep Mitigation/IR blocks out of the main view; they are shown in the modal window now.
+            ['statsPanel', 'controlsPanel', 'chartPanel'].forEach(id => document.getElementById(id).classList.remove('hidden'));
+            
+            const s = STRATEGIES[type];
+            document.getElementById('mitModalList').innerHTML = s.mit.map(x => `<li>${x}</li>`).join('');
+            document.getElementById('resModalList').innerHTML = s.res.map(x => `<li>${x}</li>`).join('');
+            
+            resize();
+            const w = canvas.width, h = canvas.height, cx = w/2, cy = h/2;
+            let nodes = [], edges = [];
+            const add = (id, x, y, type, crit=false, level=0) => nodes.push({id, x, y, type, critical: crit, level, state: 'healthy', neighbors: []});
+            const link = (a, b) => { edges.push({from: a, to: b, cut: false, quarantine: false}); nodes[a].neighbors.push(b); nodes[b].neighbors.push(a); };
+
+            if(type==='star'){ add(0,cx,cy,'switch',true); for(let i=1;i<count;i++){const a=(2*Math.PI*(i-1))/(count-1); add(i,cx+200*Math.cos(a),cy+200*Math.sin(a),'pc'); link(0,i);} }
+            else if(type==='ring'){ for(let i=0;i<count;i++){const a=(2*Math.PI*i)/count; add(i,cx+180*Math.cos(a),cy+180*Math.sin(a),'pc');} for(let i=0;i<count;i++) link(i,(i+1)%count); }
+            else if(type==='tree'){
+                // Build a connected tree that respects the selected node count.
+                // Hard guarantees:
+                // - No self-loops
+                // - Every node has at least one NON-self connection (root connected to others, others have a parent)
+                add(0, cx, 50, 'router', true, 0);
+
+                // Create a random tree by linking each new node to a previous node.
+                // This guarantees connectivity.
+                for(let i=1;i<count;i++){
+                    add(i, 0, 0, 'pc', false, 0);
+                    const parent = Math.floor(Math.random() * i); // in [0, i-1]
+                    link(i, parent);
+                }
+
+                // Compute BFS levels from root for layout & device typing.
+                const levelArr = new Array(count).fill(-1);
+                const q = [0];
+                levelArr[0] = 0;
+                for(let qi=0; qi<q.length; qi++){
+                    const u = q[qi];
+                    const nextLevel = levelArr[u] + 1;
+                    nodes[u].neighbors.forEach(v => {
+                        if(levelArr[v] === -1){
+                            levelArr[v] = nextLevel;
+                            q.push(v);
+                        }
+                    });
+                }
+
+                // Apply computed levels and pick device types by depth.
+                for(let i=0;i<count;i++){
+                    nodes[i].level = Math.max(0, levelArr[i]);
+                    if(nodes[i].id === 0) nodes[i].type = 'router';
+                    else if(nodes[i].level === 1) nodes[i].type = 'switch';
+                    else nodes[i].type = 'pc';
+                }
+
+                // Final pass: ensure no node is isolated via an invisible self-loop.
+                // (Edges where from===to draw as a point and look "isolated".)
+                for(let i=0;i<count;i++){
+                    const nonSelfNeighbors = nodes[i].neighbors.filter(nid => nid !== i);
+                    if(nonSelfNeighbors.length === 0){
+                        const j = (i === 0) ? 1 : 0;
+                        link(i, j);
+                    }
+                }
+
+                // Layout nodes by BFS levels (layered tree).
+                const levels = new Map();
+                nodes.forEach(n => {
+                    const lvl = (typeof n.level === 'number') ? n.level : 0;
+                    if(!levels.has(lvl)) levels.set(lvl, []);
+                    levels.get(lvl).push(n);
+                });
+                levels.forEach((arr, lvl) => {
+                    const y = 50 + lvl * 120;
+                    if(lvl === 0) {
+                        arr.forEach(n => { n.x = cx; n.y = 50; });
+                        return;
+                    }
+                    const span = Math.max(200, w - 100);
+                    arr.forEach((n, idx) => {
+                        n.x = 50 + (span * (idx + 1)) / (arr.length + 1);
+                        n.y = y;
+                    });
+                });
+            }
+            else if(type==='mesh'){
+                for(let i=0;i<count;i++) add(i,50+Math.random()*(w-100),50+Math.random()*(h-100),'router');
+                // Ensure each node (except 0) has at least one link to a previous node.
+                for(let i=1;i<count;i++) link(i,Math.floor(Math.random()*i));
+                // Add some extra random links.
+                for(let i=0;i<count;i++) link(i,Math.floor(Math.random()*count));
+                // Guarantee no device is isolated (degree >= 1 for every node, including node 0).
+                for(let i=0;i<count;i++){
+                    if(nodes[i].neighbors.length === 0){
+                        const j = (i === 0) ? 1 : 0;
+                        link(i, j);
+                    }
+                }
+            }
+
+            network = {nodes, edges};
+            // Ensure runtime flags exist for store-driven effects.
+            network.nodes.forEach(n => { n.trapped = false; n.isolated = false; });
+            network.edges.forEach(e => { if(typeof e.quarantine !== 'boolean') e.quarantine = false; });
+            
+            if(activeDefenses.honey) {
+                let potentials = network.nodes.filter(n => !n.critical);
+                for(let i=0; i<Math.max(3, count*0.2); i++) {
+                    if(potentials.length === 0) break;
+                    let idx = Math.floor(Math.random() * potentials.length);
+                    potentials[idx].state = 'honeypot';
+                    potentials.splice(idx, 1);
+                }
+                log("SYSTEM: Deception Technology (Honeypots) Online.");
+            }
+            if(activeDefenses.firewall) log("SYSTEM: Next-Gen Firewall Configured.");
+            if(activeDefenses.harden) log("SYSTEM: Endpoint Hardening Applied.");
+            if(activeDefenses.ips) log("SYSTEM: Auto-IPS Monitoring.");
+            if(activeDefenses.backup) log("SYSTEM: Critical Backup Server Ready.");
+
+            draw(); log(`Network Generated: ${type.toUpperCase()}`);
+        }
+
+        function updateLogic(dt) {
+            // Firewall is modeled via spread chance (not packet speed).
+            let speedMod = 1.0;
+            if(state.iso) speedMod *= 0.1;
+
+            const spd = CONFIG.MALWARE[state.malware].speed * speedMod;
+            let nextP = [];
+
+            // Auto IPS: after ~1s, neutralize infected nodes automatically.
+            if(activeDefenses.ips) {
+                network.nodes.forEach(n => {
+                    if(n.state === 'infected' && !n.isolated) {
+                        n.ipsTimer = (n.ipsTimer || 0) + dt;
+                        if(n.ipsTimer >= 1.0) {
+                            n.isolated = true;
+                            quarantineEdgesForNode(n.id);
+                            n.state = 'recovered';
+                            floatingTexts.push({x: n.x, y: n.y, text: "NEUTRALIZED", color: "#e74c3c", life: 1.0});
+                            log(`🤖 Auto IPS neutralized threat on Node ${n.id}.`);
+                        }
+                    }
+                });
+            }
+
+            // If the network is isolated, quarantine stops all propagation (drop in-flight packets).
+            if(!state.iso) {
+                activePackets.forEach(p => {
+                    p.t += spd * dt;
+                    let edge = network.edges.find(e => (e.from===p.from && e.to===p.to) || (e.from===p.to && e.to===p.from));
+                    if(edge && (edge.cut || edge.quarantine)) { /* Dies */ }
+                    else if(p.t >= 1) infect(p.to);
+                    else nextP.push(p);
+                });
+                activePackets = nextP;
+            } else {
+                activePackets = [];
+            }
+
+            // Spreading phase
+            if(!state.rec && !state.iso) {
+                let spreadChance = 0.015;
+                if(activeDefenses.firewall) spreadChance *= 0.8;
+                if(activeDefenses.harden) spreadChance *= 0.7;
+
+                const spreadChanceNoFirewall = 0.015 * (activeDefenses.harden ? 0.7 : 1.0);
+
+                network.nodes.forEach(n => {
+                    if(n.state === 'infected' && !n.trapped && !n.isolated) {
+                        n.neighbors.forEach(nid => {
+                            const target = network.nodes[nid];
+                            if(!target) return;
+                            if(target.state === 'infected') return;
+                            if(target.state === 'honeypot') return;
+                            if(target.isolated) return;
+
+                            const roll = Math.random();
+                            if(roll < spreadChance) {
+                                activePackets.push({from: n.id, to: nid, t: 0});
+                            } else if(activeDefenses.firewall && roll < spreadChanceNoFirewall) {
+                                log("🛡️ Firewall blocked attempted spread.");
+                            }
+                        });
+                    }
+                });
+            }
+
+            // Recovery phase
+            if(state.rec) {
+                network.nodes.forEach(n => {
+                    let recoverChance = 0.02;
+                    if(activeDefenses.backup) recoverChance *= 3;
+                    if(n.state === 'infected' && Math.random() < recoverChance) {
+                        n.state = 'recovered';
+                        floatingTexts.push({x: n.x, y: n.y, text: "💊", color: "#2ecc71", life: 1.0});
+                        if(activeDefenses.backup) log(`💾 Backup restored Node ${n.id} data instantly.`);
+                    }
+                });
+            }
+        }
+
+        function loop() {
+            if(!state.running || state.paused) return;
+            const now = Date.now(); const dt = (now - lastTime)/1000; lastTime = now; state.elapsed += dt;
+
+            updateLogic(dt);
+            updateRecoverButtonState();
+
+            // Float text logic
+            floatingTexts = floatingTexts.filter(ft => { ft.y -= 0.5; ft.life -= 0.02; return ft.life > 0; });
+
+            updateDashboard(); draw();
+            const inf = network.nodes.filter(n => n.state === 'infected').length;
+            if(inf > state.peak) state.peak = inf;
+            if(state.rec && inf === 0 && activePackets.length === 0) endGame(); else animId = requestAnimationFrame(loop);
+        }
+
+        function infect(id) {
+            const n = network.nodes[id];
+
+            if(n.critical && state.upgrades.backup && !state.backupUsed) {
+                state.backupUsed = true;
+                floatingTexts.push({x: n.x, y: n.y, text: "BACKUP RESTORED!", color: "#3498db", life: 1.5});
+                log(`💾 CRITICAL ALERT: Node ${id} compromised! Backup restored instantly.`);
+                return; 
+            }
+
+            if(n.state === 'honeypot') { 
+                floatingTexts.push({x: n.x, y: n.y, text: "TRAPPED!", color: "#e67e22", life: 1.0});
+                log(`🍯 DECEPTION: Attack trapped in Honeypot Node ${id}.`); 
+            }
+            else if(n.state === 'healthy') {
+                n.state = 'infected';
+                n.trapped = false;
+                n.isolated = false;
+                n.ipsTimer = 0;
+                const cost = CONFIG.DEVICES[n.type].cost * CONFIG.MALWARE[state.malware].dmg;
+                state.damage += cost;
+                log(`🚨 ALERT: Node ${id} infected. Damage: $${cost}`);
+
+                // Honeypots: 10% chance infected node becomes trapped (can’t spread).
+                if(activeDefenses.honey && Math.random() < 0.10) {
+                    n.trapped = true;
+                    floatingTexts.push({x: n.x, y: n.y, text: "TRAPPED!", color: "#e67e22", life: 1.0});
+                    log(`🍯 Honeypot trapped the worm at Node ${id}!`);
+                }
+            }
+        }
+
+        function startSim() { 
+            state.running = true; 
+            lastTime = Date.now(); 
+            document.getElementById('startBtn').disabled = true; 
+            document.getElementById('pauseBtn').disabled = false; 
+            document.getElementById('isoBtn').disabled = false; 
+            document.getElementById('cutBtn').disabled = false; 
+            updateRecoverButtonState();
+            document.getElementById('statusMsg').innerText = "⚠️ INFECTION SPREADING"; 
+            document.getElementById('statusMsg').style.color = CONFIG.COLORS.infected; 
+            loop(); 
+        }
+        function pauseSim() { 
+            state.paused = !state.paused; 
+            document.getElementById('pauseBtn').innerText = state.paused ? "▶ Resume" : "⏸ Pause"; 
+            updateRecoverButtonState();
+            if(!state.paused) { lastTime = Date.now(); loop(); } 
+        }
+        function toggleCutMode() { state.cutMode = !state.cutMode; document.getElementById('appBody').classList.toggle('cut-mode', state.cutMode); document.getElementById('cutBtn').innerText = state.cutMode ? "Cancel Cut Mode" : "✂️ Cut Link Mode"; }
+        function applyIsolation(nodeId) {
+            const n = network.nodes[nodeId];
+            if(!n) return;
+            n.isolated = true;
+            quarantineEdgesForNode(nodeId);
+            floatingTexts.push({x: n.x, y: n.y, text: "ISOLATED", color: "#e74c3c", life: 1.0});
+            log(`🤖 Auto IPS isolated Node ${nodeId}`);
+            updateRecoverButtonState();
+        }
+
+        function quarantineEdgesForNode(nodeId) {
+            // Mark incident edges as quarantined (no cost, distinct from manual cut).
+            network.edges.forEach(e => {
+                if(e.from === nodeId || e.to === nodeId) e.quarantine = true;
+            });
+            // Drop any in-flight packets involving this node.
+            activePackets = activePackets.filter(p => p.from !== nodeId && p.to !== nodeId);
+            updateRecoverButtonState();
+        }
+        function buyIsolation() { 
+            if(state.budget >= CONFIG.COSTS.ISOLATION) { 
+                state.budget -= CONFIG.COSTS.ISOLATION; 
+                state.iso = true; 
+                activePackets = []; // quarantine drops in-flight propagation
+                document.getElementById('isoBtn').disabled = true; 
+                log("COMMAND: Network Isolation Protocols Initiated (-$5k). Propagation halted."); 
+                updateRecoverButtonState();
+                draw(); 
+            } else alert("Insufficient Funds!"); 
+        }
+        function buyRecovery() { if(state.budget >= CONFIG.COSTS.RECOVERY) { state.budget -= CONFIG.COSTS.RECOVERY; state.rec = true; document.getElementById('recBtn').disabled = true; log("COMMAND: Deployment of Anti-Malware teams (-$10k)."); } else alert("Insufficient Funds!"); }
+
+        function isInfectionContained() {
+            if(state.iso) return true;
+            // Containment rule (as requested):
+            // If there are NO active edges connecting an Infected node to a Susceptible node,
+            // the infection is contained.
+            for(const e of network.edges) {
+                if(e.cut || e.quarantine) continue;
+                const a = network.nodes[e.from];
+                const b = network.nodes[e.to];
+                if(!a || !b) continue;
+
+                const aCanSpread = a.state === 'infected' && !a.isolated && !a.trapped;
+                const bCanSpread = b.state === 'infected' && !b.isolated && !b.trapped;
+
+                const aSusceptible = a.state === 'healthy' && !a.isolated;
+                const bSusceptible = b.state === 'healthy' && !b.isolated;
+
+                if((aCanSpread && bSusceptible) || (bCanSpread && aSusceptible)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function updateRecoverButtonState() {
+            const btn = document.getElementById('recBtn');
+            if(!btn) return;
+            if(!state.running || state.rec) { btn.disabled = true; return; }
+            const canAfford = state.budget >= CONFIG.COSTS.RECOVERY;
+            btn.disabled = !(canAfford && isInfectionContained());
+        }
+
+        function resetSim(budgetOverride = null) {
+            cancelAnimationFrame(animId);
+            const computedStartBudget = budgetOverride ?? getUserBudget();
+            const hasOverride = budgetOverride !== null;
+            state = { 
+                running: false, paused: false, 
+                startBudget: computedStartBudget,
+                budget: computedStartBudget,
+                securityCost: hasOverride ? (state.securityCost || 0) : 0,
+                damage: 0, peak: 0, elapsed: 0, 
+                malware: document.getElementById('malwareType').value, 
+                iso: false, rec: false, cutMode: false, backupUsed: false,
+                upgrades: activeDefenses
+            };
+            activePackets = []; floatingTexts = [];
+            document.getElementById('appBody').classList.remove('cut-mode');
+            document.getElementById('cutBtn').innerText = "✂️ Cut Link Mode";
+            network.nodes.forEach(n => { n.state = 'healthy'; n.trapped = false; n.isolated = false; });
+            network.edges.forEach(e => { e.cut = false; e.quarantine = false; });
+            ['startBtn','pauseBtn','isoBtn','recBtn','cutBtn'].forEach(id=>document.getElementById(id).disabled=true);
+            document.getElementById('statusMsg').innerText = "Select Patient Zero..."; document.getElementById('statusMsg').style.color = "#bdc3c7";
+            document.getElementById('log').innerHTML = ""; // Clear log
+            log("System Ready..."); 
+            
+            if(!hasOverride) { 
+                document.getElementById('activeDefenseOverlay').innerHTML = ''; // Clear badges
+                updateStoreUI();
+            } 
+            
+            updateStats(); draw();
+            if(chart) { chart.data.labels = []; chart.data.datasets.forEach(ds => ds.data = []); chart.update(); }
+        }
+
+        function updateDashboard() {
+            const counts = { h: 0, i: 0 }; network.nodes.forEach(n => { if(n.state === 'healthy' || n.state === 'honeypot') counts.h++; if(n.state === 'infected') counts.i++; });
+            document.getElementById('dashBudget').innerText = `$${state.budget.toLocaleString()}`;
+            document.getElementById('dashHealthy').innerText = counts.h; document.getElementById('dashInfected').innerText = counts.i;
+            const totalCost = (state.damage || 0) + (state.securityCost || 0);
+            document.getElementById('dashCost').innerText = `$${totalCost.toLocaleString()}`; document.getElementById('dashTime').innerText = state.elapsed.toFixed(1) + 's';
+            if(state.running && !state.paused && state.elapsed % 1 < 0.1) { chart.data.labels.push(state.elapsed.toFixed(0)+'s'); chart.data.datasets[0].data.push(counts.h); chart.data.datasets[1].data.push(counts.i); chart.update(); }
+        }
+
+        // Backwards compatibility with older calls
+        function updateStats() { updateDashboard(); }
+
+        function draw() {
+            ctx.clearRect(0,0,canvas.width, canvas.height);
+            // Edges
+            network.edges.forEach(e => {
+                const n1 = network.nodes[e.from], n2 = network.nodes[e.to];
+                ctx.beginPath(); ctx.moveTo(n1.x, n1.y); ctx.lineTo(n2.x, n2.y);
+                
+                // LINE COLOR LOGIC (FIXED)
+                if(e.cut) ctx.strokeStyle = CONFIG.COLORS.cut;
+                else if(state.iso) ctx.strokeStyle = '#7f8c8d'; // Quarantine: dashed links + red X markers
+                else if(e.quarantine) ctx.strokeStyle = '#e74c3c'; // Auto IPS isolation
+                else if(state.upgrades.firewall) ctx.strokeStyle = '#3498db'; // Firewall: blue links
+                else ctx.strokeStyle = CONFIG.COLORS.link;
+                
+                ctx.lineWidth = e.cut ? 3 : 2;
+                if(state.iso || e.cut || e.quarantine) ctx.setLineDash([5,5]); else ctx.setLineDash([]);
+                ctx.stroke();
+
+                // Visual markers for defenses / actions on links
+                const mx = (n1.x + n2.x) / 2;
+                const my = (n1.y + n2.y) / 2;
+                ctx.setLineDash([]);
+                if(e.cut) {
+                    ctx.font = "16px Arial";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillStyle = "#e74c3c";
+                    ctx.fillText("✂️", mx, my);
+                    ctx.fillText("✖", mx, my + 16);
+                } else if(state.iso) {
+                    ctx.font = "16px Arial";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillStyle = "#e74c3c";
+                    ctx.fillText("✖", mx, my);
+                } else if(e.quarantine) {
+                    ctx.font = "16px Arial";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillStyle = "#e74c3c";
+                    ctx.fillText("✖", mx, my);
+                } else if(state.upgrades.firewall) {
+                    ctx.font = "16px Arial";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillStyle = "#3498db";
+                    ctx.fillText("🛡️", mx, my);
+                }
+            }); ctx.setLineDash([]);
+            
+            // Packets (FIXED ICONS)
+            ctx.font = "16px Arial"; ctx.textAlign="center"; ctx.textBaseline="middle";
+            activePackets.forEach(p => { 
+                const n1 = network.nodes[p.from], n2 = network.nodes[p.to];
+                let icon = CONFIG.MALWARE[state.malware].icon;
+                ctx.fillText(icon, n1.x+(n2.x-n1.x)*p.t, n1.y+(n2.y-n1.y)*p.t); 
+            });
+            
+            // Nodes
+            network.nodes.forEach(n => {
+                if(n.state === 'infected') { ctx.beginPath(); ctx.arc(n.x, n.y, 25, 0, Math.PI*2); ctx.fillStyle = "rgba(231, 76, 60, 0.3)"; ctx.fill(); }
+                ctx.beginPath(); ctx.arc(n.x, n.y, 18, 0, Math.PI*2);
+                ctx.fillStyle = CONFIG.COLORS[n.state]; ctx.fill();
+                ctx.strokeStyle = n.critical ? CONFIG.COLORS.critical : 'white'; ctx.lineWidth = n.critical ? 3 : 2; ctx.stroke();
+                
+                ctx.fillStyle = 'white'; 
+                let icon = CONFIG.DEVICES[n.type].icon;
+                if(n.state === 'honeypot') icon = '🍯';
+                if(state.malware === 'virus' && n.state === 'infected') icon = '☣️';
+                else if(state.malware === 'ransom' && n.state === 'infected') icon = '🔒';
+                ctx.fillText(icon, n.x, n.y+1);
+            });
+
+            // Floating Texts
+            floatingTexts.forEach(ft => {
+                ctx.fillStyle = ft.color; ctx.font = "bold 12px Arial";
+                ctx.fillText(ft.text, ft.x, ft.y - 30);
+            });
+        }
+
+        function onClick(e) {
+            const r = canvas.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+            if(state.cutMode) {
+                let clickedEdge = network.edges.find(edge => {
+                    const n1 = network.nodes[edge.from], n2 = network.nodes[edge.to];
+                    const l2 = (n2.x-n1.x)**2 + (n2.y-n1.y)**2;
+                    let t = ((x-n1.x)*(n2.x-n1.x) + (y-n1.y)*(n2.y-n1.y))/l2; t=Math.max(0, Math.min(1, t));
+                    return Math.hypot(x - (n1.x+t*(n2.x-n1.x)), y - (n1.y+t*(n2.y-n1.y))) < 10;
+                });
+                if(clickedEdge && !clickedEdge.cut) {
+                    if(state.budget >= CONFIG.COSTS.LINK_CUT) {
+                        state.budget -= CONFIG.COSTS.LINK_CUT; clickedEdge.cut = true; log(`Link Cut (-$500)`); draw(); updateStats(); updateRecoverButtonState();
+                    } else alert("Insufficient Funds!");
+                }
+            } else if(!state.running) {
+                const node = network.nodes.find(n => Math.hypot(n.x-x, n.y-y) < 20);
+                if(node && node.state !== 'honeypot') { infect(node.id); document.getElementById('startBtn').disabled = false; document.getElementById('statusMsg').innerText = "Ready to Start."; document.getElementById('statusMsg').style.color = CONFIG.COLORS.healthy; draw(); }
+            }
+        }
+
+        function onHover(e) {
+            const r = canvas.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top, t = document.getElementById('tooltip');
+            if(state.cutMode) {
+                let hoveredEdge = network.edges.find(edge => distToSegment({x,y}, network.nodes[edge.from], network.nodes[edge.to]) < 5);
+                canvas.style.cursor = hoveredEdge && !hoveredEdge.cut ? 'pointer' : 'url(...)'; 
+            } else {
+                const node = network.nodes.find(n => Math.hypot(n.x-x, n.y-y) < 20);
+                if(node) { t.style.display = 'block'; t.style.left = (e.clientX+10)+'px'; t.style.top = (e.clientY+10)+'px'; t.innerHTML = `<strong>${node.type.toUpperCase()} #${node.id}</strong><br>State: ${node.state}`; canvas.style.cursor = 'pointer'; }
+                else { t.style.display = 'none'; canvas.style.cursor = state.cutMode ? 'crosshair' : 'default'; }
+            }
+        }
+
+        function distToSegment(p, a, b) {
+            // Distance from point p to line segment a-b
+            const vx = b.x - a.x, vy = b.y - a.y;
+            const wx = p.x - a.x, wy = p.y - a.y;
+            const l2 = vx*vx + vy*vy;
+            if(l2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+            let t = (wx*vx + wy*vy) / l2;
+            t = Math.max(0, Math.min(1, t));
+            const px = a.x + t * vx;
+            const py = a.y + t * vy;
+            return Math.hypot(p.x - px, p.y - py);
+        }
+
+        function endGame() { 
+            state.running = false; 
+            const denom = Math.max(1, state.startBudget || 0);
+            const pct = state.budget / denom; 
+            let g = 'F', txt = 'Disaster'; 
+            if(pct > 0.8) { g='A'; txt='Excellent!'; } 
+            else if(pct > 0.5) { g='B'; txt='Good Job'; } 
+            else if(pct > 0) { g='C'; txt='Survived'; } 
+            document.getElementById('gradeDisplay').innerText = g; 
+            document.getElementById('gradeDisplay').style.color = g==='A'?CONFIG.COLORS.healthy:g==='B'?'#3498db':CONFIG.COLORS.infected; 
+            document.getElementById('gradeText').innerText = txt; 
+            document.getElementById('repBudget').innerText = `$${Number(state.budget).toLocaleString()}`; 
+            document.getElementById('repDamage').innerText = `$${Number((state.damage||0) + (state.securityCost||0)).toLocaleString()}`; 
+            document.getElementById('repPeak').innerText = state.peak; 
+            document.getElementById('reportModal').classList.remove('hidden'); 
+        }
+        
+        function showStrategyModal() { 
+            document.getElementById('reportModal').classList.add('hidden'); 
+            document.getElementById('shopModal').classList.remove('hidden'); 
+        }
+        function closeStrategyModal() { document.getElementById('shopModal').classList.add('hidden'); }
+
+        // Security Shop is in the left sidebar; no mitigation-options popup flow.
+    </script>
+</body>
+</html>
